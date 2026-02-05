@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../screens/patient_dashboard_screen.dart';
 import '../services/patient_service.dart';
+import '../services/auth_service.dart';
 
 class PatientSignUpScreen extends StatefulWidget {
   const PatientSignUpScreen({super.key});
@@ -215,7 +216,7 @@ class _PatientSignUpScreenState extends State<PatientSignUpScreen> {
                   width: double.infinity,
                   height: 50,
                   child: ElevatedButton(
-                    onPressed: () {
+                    onPressed: () async {
                       if (_nameController.text.isEmpty ||
                           _emailController.text.isEmpty ||
                           _phoneController.text.isEmpty ||
@@ -243,11 +244,14 @@ class _PatientSignUpScreenState extends State<PatientSignUpScreen> {
 
                       // Use PatientService to sign up and create patient
                       final patientService = PatientService();
-                      final newPatient = patientService.signUpPatient(
+                      final newPatient = await patientService.signUpPatient(
                         name: _nameController.text,
                         email: _emailController.text,
                         phone: _phoneController.text,
                       );
+
+                      // Save login persistent
+                      await AuthService.saveLogin(_emailController.text, 'patient');
 
                       // Navigate to Patient Dashboard
                       Navigator.pushReplacement(

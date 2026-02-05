@@ -42,6 +42,40 @@ class PatientData {
       selectedDoctorIds: selectedDoctorIds ?? this.selectedDoctorIds,
     );
   }
+
+  // Convert to JSON
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'email': email,
+      'age': age,
+      'phoneNumber': phoneNumber,
+      'bodyTemperature': bodyTemperature,
+      'roomTemperature': roomTemperature,
+      'aqi': aqi,
+      'ecgData': ecgData.map((e) => e.toJson()).toList(),
+      'selectedDoctorIds': selectedDoctorIds,
+    };
+  }
+
+  // Create from JSON
+  factory PatientData.fromJson(Map<String, dynamic> json) {
+    return PatientData(
+      id: json['id'],
+      name: json['name'],
+      email: json['email'],
+      age: json['age'],
+      phoneNumber: json['phoneNumber'],
+      bodyTemperature: json['bodyTemperature'].toDouble(),
+      roomTemperature: json['roomTemperature'].toDouble(),
+      aqi: json['aqi'],
+      ecgData: (json['ecgData'] as List)
+          .map((e) => ECGDataPoint.fromJson(e))
+          .toList(),
+      selectedDoctorIds: List<String>.from(json['selectedDoctorIds']),
+    );
+  }
 }
 
 class ECGDataPoint {
@@ -49,6 +83,22 @@ class ECGDataPoint {
   final double value;
 
   ECGDataPoint({required this.time, required this.value});
+
+  // Convert to JSON
+  Map<String, dynamic> toJson() {
+    return {
+      'time': time.toIso8601String(),
+      'value': value,
+    };
+  }
+
+  // Create from JSON
+  factory ECGDataPoint.fromJson(Map<String, dynamic> json) {
+    return ECGDataPoint(
+      time: DateTime.parse(json['time']),
+      value: json['value'].toDouble(),
+    );
+  }
 }
 
 // Mock data for demo

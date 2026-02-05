@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
+import '../services/patient_service.dart';
+import '../screens/patient_dashboard_screen.dart';
+import '../screens/doctor_dashboard_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -28,9 +32,40 @@ class _SplashScreenState extends State<SplashScreen>
     _animationController.forward();
 
     // Navigate after 5 seconds
-    Future.delayed(const Duration(seconds: 5), () {
+    Future.delayed(const Duration(seconds: 5), () async {
       if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/login-selection');
+        final loginInfo = await AuthService.getLogin();
+        
+        if (loginInfo != null) {
+          final role = loginInfo['role'];
+          final email = loginInfo['email'];
+
+          if (role == 'patient') {
+            final patientService = PatientService();
+            // Since we don't have a real DB yet, we use the email to find the mock patient
+            // john@example.com is the default
+            final loggedIn = await patientService.loginPatient(email!, 'password'); 
+            
+            if (loggedIn && mounted) {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(
+                  builder: (context) => PatientDashboardScreen(
+                    patientData: patientService.currentPatient,
+                  ),
+                ),
+              );
+            } else if (mounted) {
+              // If patient not found (e.g. data cleared), go to login
+              Navigator.of(context).pushReplacementNamed('/login-selection');
+            }
+          } else if (role == 'doctor') {
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(builder: (context) => const DoctorDashboardScreen()),
+            );
+          }
+        } else {
+          Navigator.of(context).pushReplacementNamed('/login-selection');
+        }
       }
     });
   }

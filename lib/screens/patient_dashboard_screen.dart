@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/patient.dart';
 import '../services/patient_service.dart';
 import '../services/sensor_service.dart';
+import '../services/auth_service.dart';
 
 class PatientDashboardScreen extends StatefulWidget {
   final PatientData? patientData;
@@ -80,12 +81,11 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () {
-              Navigator.pushNamedAndRemoveUntil(
-                context,
-                '/login-selection',
-                (route) => false,
-              );
+            onPressed: () async {
+              await AuthService.logout();
+              if (context.mounted) {
+                Navigator.of(context).pushReplacementNamed('/login-selection');
+              }
             },
           ),
         ],
@@ -266,7 +266,21 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                               ),
                               IconButton(
                                 icon: Icon(Icons.close, color: Colors.red.shade400),
-                                onPressed: () => _removeDoctor(doctorId),
+                                onPressed: () async {
+                                  await _patientService
+                                      .removeDoctorFromCurrentPatient(
+                                          doctor['id']!);
+                                  if (context.mounted) {
+                                    Navigator.pop(context);
+                                    ScaffoldMessenger.of(context)
+                                        .showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                            '${doctor['name']} removed from your doctors'),
+                                      ),
+                                    );
+                                  }
+                                },
                               ),
                             ],
                           ),
@@ -300,42 +314,56 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
               const SizedBox(height: 15),
 
               // AQI, Body Temp, Room Temp Cards
-              GridView.count(
-                crossAxisCount: 2,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisSpacing: 15,
-                mainAxisSpacing: 15,
-                children: [
-                  _buildVitalCard(
-                    icon: Icons.air,
-                    title: 'AQI',
-                    value: _currentPatient.aqi.toString(),
-                    unit: 'µg/m³',
-                    color: Colors.blue,
-                  ),
-                  _buildVitalCard(
-                    icon: Icons.thermostat,
-                    title: 'Body Temp',
-                    value: _currentPatient.bodyTemperature.toStringAsFixed(1),
-                    unit: '°F',
-                    color: Colors.red,
-                  ),
-                  _buildVitalCard(
-                    icon: Icons.thermostat_auto,
-                    title: 'Room Temp',
-                    value: _currentPatient.roomTemperature.toStringAsFixed(1),
-                    unit: '°F',
-                    color: Colors.orange,
-                  ),
-                  _buildVitalCard(
-                    icon: Icons.favorite,
-                    title: 'Heart Rate',
-                    value: '72',
-                    unit: 'bpm',
-                    color: Colors.pink,
-                  ),
-                ],
+              StreamBuilder<Map<String, dynamic>>(
+                stream: _sensorService.vitalsStream,
+                builder: (context, snapshot) {
+                  final data = snapshot.data;
+                  final bodyTemp = data?['bodyTemp']?.toStringAsFixed(1) ?? 
+                      _currentPatient.bodyTemperature.toStringAsFixed(1);
+                  final roomTemp = data?['roomTemp']?.toStringAsFixed(1) ?? 
+                      _currentPatient.roomTemperature.toStringAsFixed(1);
+                  final aqi = data?['aqi']?.toString() ?? 
+                      _currentPatient.aqi.toString();
+                  final heartRate = data?['heartRate']?.toString() ?? '72';
+
+                  return GridView.count(
+                    crossAxisCount: 2,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisSpacing: 15,
+                    mainAxisSpacing: 15,
+                    children: [
+                      _buildVitalCard(
+                        icon: Icons.air,
+                        title: 'AQI',
+                        value: aqi,
+                        unit: 'µg/m³',
+                        color: Colors.blue,
+                      ),
+                      _buildVitalCard(
+                        icon: Icons.thermostat,
+                        title: 'Body Temp',
+                        value: bodyTemp,
+                        unit: '°F',
+                        color: double.parse(bodyTemp) > 99.0 ? Colors.red : Colors.green,
+                      ),
+                      _buildVitalCard(
+                        icon: Icons.thermostat_auto,
+                        title: 'Room Temp',
+                        value: roomTemp,
+                        unit: '°F',
+                        color: Colors.orange,
+                      ),
+                      _buildVitalCard(
+                        icon: Icons.favorite,
+                        title: 'Heart Rate',
+                        value: heartRate,
+                        unit: 'bpm',
+                        color: Colors.pink,
+                      ),
+                    ],
+                  );
+                },
               ),
               const SizedBox(height: 25),
 
@@ -415,27 +443,30 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
                 trailing: isSelected ? const Icon(Icons.check) : null,
                 onTap: isSelected
                     ? null
-                    : () {
-                        setState(() {
-                          final updatedIds = [
-                            ..._currentPatient.selectedDoctorIds,
-                            doctor['id']!,
-                          ];
-                          _currentPatient =
-                              _currentPatient.copyWith(
-                            selectedDoctorIds: updatedIds,
+                    : () async {
+                        final updatedIds = [
+                          ..._currentPatient.selectedDoctorIds,
+                          doctor['id']!,
+                        ];
+                        // Update in service
+                        await _patientService.updateSelectedDoctors(updatedIds);
+                        
+                        if (mounted) {
+                          setState(() {
+                            _currentPatient =
+                                _currentPatient.copyWith(
+                              selectedDoctorIds: updatedIds,
+                            );
+                          });
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                  '${doctor['name']} added successfully'),
+                              duration: const Duration(seconds: 2),
+                            ),
                           );
-                          // Update in service
-                          _patientService.updateSelectedDoctors(updatedIds);
-                        });
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                                '${doctor['name']} added successfully'),
-                            duration: const Duration(seconds: 2),
-                          ),
-                        );
+                        }
                       },
               );
             },
@@ -451,23 +482,26 @@ class _PatientDashboardScreenState extends State<PatientDashboardScreen> {
     );
   }
 
-  void _removeDoctor(String doctorId) {
-    setState(() {
-      final updatedIds = _currentPatient.selectedDoctorIds
-          .where((id) => id != doctorId)
-          .toList();
-      _currentPatient = _currentPatient.copyWith(
-        selectedDoctorIds: updatedIds,
+  Future<void> _removeDoctor(String doctorId) async {
+    final updatedIds = _currentPatient.selectedDoctorIds
+        .where((id) => id != doctorId)
+        .toList();
+    
+    await _patientService.updateSelectedDoctors(updatedIds);
+    
+    if (mounted) {
+      setState(() {
+        _currentPatient = _currentPatient.copyWith(
+          selectedDoctorIds: updatedIds,
+        );
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Doctor removed'),
+          duration: Duration(seconds: 2),
+        ),
       );
-      // Update in service
-      _patientService.updateSelectedDoctors(updatedIds);
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Doctor removed'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+    }
   }
 
   Widget _buildInfoChip(String label, String value) {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/patient.dart';
 import '../services/patient_service.dart';
 import '../services/sensor_service.dart';
+import '../services/auth_service.dart';
 
 class DoctorDashboardScreen extends StatefulWidget {
   final String doctorId;
@@ -36,8 +37,8 @@ class _DoctorDashboardScreenState extends State<DoctorDashboardScreen> {
   }
 
   // Get patients who have selected this doctor from PatientService
-  List<PatientData> _getMyPatients() {
-    return _patientService.getPatientsByDoctor(_doctorId);
+  Future<List<PatientData>> _getMyPatients() async {
+    return await _patientService.getPatientsByDoctor(_doctorId);
   }
   
   // Get doctor info by ID
@@ -87,12 +88,11 @@ class _DoctorDashboardScreenState extends State<DoctorDashboardScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () {
-              Navigator.pushNamedAndRemoveUntil(
-                context,
-                '/login-selection',
-                (route) => false,
-              );
+            onPressed: () async {
+              await AuthService.logout();
+              if (context.mounted) {
+                Navigator.of(context).pushReplacementNamed('/login-selection');
+              }
             },
           ),
         ],
@@ -175,70 +175,115 @@ class _DoctorDashboardScreenState extends State<DoctorDashboardScreen> {
               ),
             ),
             
-            // Summary Cards
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  _buildSummaryCard(
-                    'My Patients',
-                    myPatients.length.toString(),
-                    Colors.blue,
-                    Icons.people,
-                  ),
-                  const SizedBox(width: 15),
-                  _buildSummaryCard(
-                    'High Temp',
-                    myPatients
-                        .where((p) => p.bodyTemperature > 99.0)
-                        .length
-                        .toString(),
-                    Colors.red,
-                    Icons.warning,
-                  ),
-                  const SizedBox(width: 15),
-                  _buildSummaryCard(
-                    'Poor AQI',
-                    myPatients.where((p) => p.aqi > 50).length.toString(),
-                    Colors.amber,
-                    Icons.air,
-                  ),
-                ],
-              ),
-            ),
-
-            // Patients List
+            // Summary Cards and Patients List
             Expanded(
-              child: myPatients.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
+              child: FutureBuilder<List<PatientData>>(
+                future: _getMyPatients(),
+                builder: (context, patientSnapshot) {
+                  if (patientSnapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  
+                  final myPatients = patientSnapshot.data ?? [];
+
+                  return StreamBuilder<Map<String, dynamic>>(
+                    stream: _sensorService.vitalsStream,
+                    builder: (context, snapshot) {
+                      final liveData = snapshot.data;
+                      
+                      final totalPatients = myPatients.length;
+                      final highTempCount = myPatients.where((p) {
+                        final temp = p.id == 'P001' && liveData != null 
+                            ? liveData['bodyTemp'] 
+                            : p.bodyTemperature;
+                        return temp > 99.0;
+                      }).length;
+                      
+                      final poorAQICount = myPatients.where((p) {
+                        final aqi = p.id == 'P001' && liveData != null 
+                            ? liveData['aqi'] 
+                            : p.aqi;
+                        return aqi > 50;
+                      }).length;
+
+                      return Column(
                         children: [
-                          Icon(
-                            Icons.people_outline,
-                            size: 60,
-                            color: Colors.grey.shade400,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'No patients have selected you yet',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.grey.shade600,
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            padding: const EdgeInsets.all(16),
+                            child: Row(
+                              children: [
+                                _buildSummaryCard(
+                                  'My Patients',
+                                  totalPatients.toString(),
+                                  Colors.blue,
+                                  Icons.people,
+                                ),
+                                const SizedBox(width: 15),
+                                _buildSummaryCard(
+                                  'High Temp',
+                                  highTempCount.toString(),
+                                  Colors.red,
+                                  Icons.warning,
+                                ),
+                                const SizedBox(width: 15),
+                                _buildSummaryCard(
+                                  'Poor AQI',
+                                  poorAQICount.toString(),
+                                  Colors.amber,
+                                  Icons.air,
+                                ),
+                              ],
                             ),
                           ),
+                          Expanded(
+                            child: myPatients.isEmpty
+                                ? Center(
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.people_outline,
+                                          size: 60,
+                                          color: Colors.grey.shade400,
+                                        ),
+                                        const SizedBox(height: 16),
+                                        const Text(
+                                          'No patients have selected you yet',
+                                          style: TextStyle(fontSize: 16, color: Colors.grey),
+                                        ),
+                                      ],
+                                    ),
+                                  )
+                                : ListView.builder(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                                    itemCount: myPatients.length,
+                                    itemBuilder: (context, index) {
+                                      final p = myPatients[index];
+                                      final displayPatient = p.id == 'P001' && liveData != null
+                                          ? PatientData(
+                                              id: p.id,
+                                              name: p.name,
+                                              email: p.email,
+                                              age: p.age,
+                                              phoneNumber: p.phoneNumber,
+                                              bodyTemperature: liveData['bodyTemp'],
+                                              roomTemperature: liveData['roomTemp'],
+                                              aqi: liveData['aqi'],
+                                              ecgData: p.ecgData,
+                                              selectedDoctorIds: p.selectedDoctorIds,
+                                            )
+                                          : p;
+                                      return _buildPatientCard(context, displayPatient, liveData);
+                                    },
+                                  ),
+                          ),
                         ],
-                      ),
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: myPatients.length,
-                      itemBuilder: (context, index) {
-                        final patient = myPatients[index];
-                        return _buildPatientCard(context, patient);
-                      },
-                    ),
+                      );
+                    },
+                  );
+                },
+              ),
             ),
           ],
         ),
@@ -293,7 +338,7 @@ class _DoctorDashboardScreenState extends State<DoctorDashboardScreen> {
     );
   }
 
-  Widget _buildPatientCard(BuildContext context, PatientData patient) {
+  Widget _buildPatientCard(BuildContext context, PatientData patient, Map<String, dynamic>? liveData) {
     final statusColor = patient.bodyTemperature > 99.0
         ? Colors.red
         : patient.bodyTemperature < 97.0
@@ -408,7 +453,9 @@ class _DoctorDashboardScreenState extends State<DoctorDashboardScreen> {
                         ),
                         _buildVitalTile(
                           'Heart Rate',
-                          '72 bpm',
+                          patient.id == 'P001' && liveData != null 
+                              ? '${liveData['heartRate']} bpm' 
+                              : '72 bpm',
                           Colors.pink,
                           Icons.favorite,
                         ),

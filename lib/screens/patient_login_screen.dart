@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../screens/patient_dashboard_screen.dart';
 import '../services/patient_service.dart';
+import '../services/auth_service.dart';
 
 class PatientLoginScreen extends StatefulWidget {
   const PatientLoginScreen({super.key});
@@ -133,7 +134,7 @@ class _PatientLoginScreenState extends State<PatientLoginScreen> {
                   width: double.infinity,
                   height: 50,
                   child: ElevatedButton(
-                    onPressed: () {
+                    onPressed: () async {
                       if (_emailController.text.isEmpty ||
                           _passwordController.text.isEmpty) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -147,7 +148,7 @@ class _PatientLoginScreenState extends State<PatientLoginScreen> {
 
                       // Use PatientService to login
                       final patientService = PatientService();
-                      final isLoggedIn = patientService.loginPatient(
+                      final isLoggedIn = await patientService.loginPatient(
                         _emailController.text,
                         _passwordController.text,
                       );
@@ -162,6 +163,9 @@ class _PatientLoginScreenState extends State<PatientLoginScreen> {
                         );
                         return;
                       }
+
+                      // Save login persistent
+                      await AuthService.saveLogin(_emailController.text, 'patient');
 
                       // Navigate to Patient Dashboard with current patient
                       Navigator.pushReplacement(

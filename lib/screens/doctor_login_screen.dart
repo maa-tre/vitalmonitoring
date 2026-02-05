@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../screens/doctor_dashboard_screen.dart';
+import '../services/auth_service.dart';
 
 class DoctorLoginScreen extends StatefulWidget {
   const DoctorLoginScreen({super.key});
@@ -132,7 +133,10 @@ class _DoctorLoginScreenState extends State<DoctorLoginScreen> {
                   width: double.infinity,
                   height: 50,
                   child: ElevatedButton(
-                    onPressed: () {
+                    onPressed: () async {
+                      // Save login persistent
+                      await AuthService.saveLogin(_emailController.text, 'doctor');
+                      
                       // Navigate to Doctor Dashboard
                       Navigator.pushReplacement(
                         context,

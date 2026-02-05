@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../screens/doctor_dashboard_screen.dart';
+import '../services/auth_service.dart';
 
 class DoctorSignUpScreen extends StatefulWidget {
   const DoctorSignUpScreen({super.key});
@@ -237,7 +238,7 @@ class _DoctorSignUpScreenState extends State<DoctorSignUpScreen> {
                   width: double.infinity,
                   height: 50,
                   child: ElevatedButton(
-                    onPressed: () {
+                    onPressed: () async {
                       if (_nameController.text.isEmpty ||
                           _emailController.text.isEmpty ||
                           _licenseController.text.isEmpty ||
@@ -264,14 +265,19 @@ class _DoctorSignUpScreenState extends State<DoctorSignUpScreen> {
                         return;
                       }
 
+                      // Save login persistent
+                      await AuthService.saveLogin(_emailController.text, 'doctor');
+
                       // Navigate to Doctor Dashboard
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              const DoctorDashboardScreen(),
-                        ),
-                      );
+                      if (context.mounted) {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                const DoctorDashboardScreen(),
+                          ),
+                        );
+                      }
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.orange.shade600,

@@ -51,7 +51,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
     });
   }
 
-  void _verifyOTP() {
+  Future<void> _verifyOTP() async {
     if (_otpController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -69,27 +69,29 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
       // OTP verified successfully
       if (widget.isSignUp) {
         // Sign up with verified email
-        final newPatient = _patientService.signUpPatient(
+        final newPatient = await _patientService.signUpPatient(
           name: widget.name,
           email: widget.email,
           phone: widget.phone,
         );
 
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) =>
-                PatientDashboardScreen(patientData: newPatient),
-          ),
-        );
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) =>
+                  PatientDashboardScreen(patientData: newPatient),
+            ),
+          );
+        }
       } else {
         // Login with verified email
-        final isLoggedIn = _patientService.loginPatient(
+        final isLoggedIn = await _patientService.loginPatient(
           widget.email,
           widget.password,
         );
 
-        if (isLoggedIn) {
+        if (isLoggedIn && mounted) {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(

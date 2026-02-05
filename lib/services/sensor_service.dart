@@ -8,31 +8,50 @@ class SensorService {
   SensorService._internal();
 
   final _ecgController = StreamController<List<ECGDataPoint>>.broadcast();
+  final _vitalsController = StreamController<Map<String, dynamic>>.broadcast();
+  
   Stream<List<ECGDataPoint>> get ecgStream => _ecgController.stream;
+  Stream<Map<String, dynamic>> get vitalsStream => _vitalsController.stream;
 
-  Timer? _timer;
+  Timer? _ecgTimer;
+  Timer? _vitalsTimer;
   double _phase = 0.0;
   final List<ECGDataPoint> _buffer = [];
   final int _maxPoints = 500;
 
   void startSimulation() {
-    _timer?.cancel();
-    _timer = Timer.periodic(const Duration(milliseconds: 4), (timer) {
+    _ecgTimer?.cancel();
+    _vitalsTimer?.cancel();
+    
+    // High-frequency ECG Simulation (250Hz)
+    _ecgTimer = Timer.periodic(const Duration(milliseconds: 4), (timer) {
       final point = _generateNextPoint();
       _buffer.add(point);
       if (_buffer.length > _maxPoints) {
         _buffer.removeAt(0);
       }
 
-      // Batch updates to the UI every 10 samples (40ms) to avoid over-rendering
+      // Batch updates every 40ms
       if (timer.tick % 10 == 0) {
         _ecgController.add(List.from(_buffer));
       }
     });
+
+    // Low-frequency Vitals Simulation (Every 2 seconds)
+    _vitalsTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
+      final random = Random();
+      _vitalsController.add({
+        'bodyTemp': 98.0 + (random.nextDouble() * 2.0),
+        'roomTemp': 70.0 + (random.nextDouble() * 3.0),
+        'aqi': 35 + random.nextInt(30),
+        'heartRate': 65 + random.nextInt(20),
+      });
+    });
   }
 
   void stopSimulation() {
-    _timer?.cancel();
+    _ecgTimer?.cancel();
+    _vitalsTimer?.cancel();
   }
 
   ECGDataPoint _generateNextPoint() {
@@ -69,7 +88,9 @@ class SensorService {
   }
 
   void dispose() {
-    _timer?.cancel();
+    _ecgTimer?.cancel();
+    _vitalsTimer?.cancel();
     _ecgController.close();
+    _vitalsController.close();
   }
 }
